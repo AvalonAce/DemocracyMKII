@@ -1,0 +1,64 @@
+# ROS2 Build Artifacts
+build/
+install/
+log/
+
+# Colcon
+.colcon_install_layout
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+eggs/
+.eggs/
+*.so
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Vosk models (large files)
+models/
+*.zip
+
+# Porcupine wake word files (keep .ppn out if they contain access keys)
+# wake_words/
+
+# Audio files (optional — uncomment if you don't want to track audio)
+audio/
+*.mp3
+*.wav
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.bag
+*.db3
+
+# Secrets / Keys
+*.key
+*.pem
+secrets.py
+config/secrets.yaml
+.env
+
+democracy_pkg/wake_words/
+democracy_pkg/test/
