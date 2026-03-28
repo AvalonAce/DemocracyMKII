@@ -9,6 +9,9 @@ import time
 import sys
 import tty
 import termios
+import threading
+import queue
+from std_msgs.msg import String
 
 def find_resting_position(servo: LX16A, step: float = 1.0, start_angle: float = 120.0) -> float:
     """
@@ -112,6 +115,19 @@ def interpolate_leg(target_angle: float, steps: int = 20, curve: str = 'cubic') 
 
     return (weights * target_angle).tolist()
 
+from dataclasses import dataclass
+
+# @dataclass(frozen=True)
+class HomePosition:
+    torso : float = 110.0
+    lKnee  : float = 100.0
+    rKnee : float = 130.0
+    lCalf  : float = 124.0
+    rCalf : float = 100.0
+    lFoot  : float = 106.0
+    rFoot : float = 106.0
+
+HOME = HomePosition()
 
 class ServoNode(Node):
 
@@ -137,14 +153,234 @@ class ServoNode(Node):
             self.get_logger().error(f"Servo {e.id_} not responding. Shutting down.")
             raise SystemExit
 
-        self.t = 0.0
+        # Queue init
+        try:
+            # Per-servo queues and worker threads
+            self._servo_queues = {
+                'torso':  queue.Queue(),
+                'lKnee':  queue.Queue(),
+                'rKnee':  queue.Queue(),
+                'lCalf':  queue.Queue(),
+                'rCalf':  queue.Queue(),
+                'lFoot':  queue.Queue(),
+                'rFoot':  queue.Queue(),
+            }
+
+            self._servo_map = {
+                'torso':  self.torso,
+                'lKnee':  self.lKnee,
+                'rKnee':  self.rKnee,
+                'lCalf':  self.lCalf,
+                'rCalf':  self.rCalf,
+                'lFoot':  self.lFoot,
+                'rFoot':  self.rFoot,
+            }
+
+            self._bus_lock = threading.Lock()
+
+            for name in self._servo_queues:
+                t = threading.Thread(
+                    target=self._servo_worker,
+                    args=(name,),
+                    daemon=True
+                )
+                t.start()
+            
+
+        except Exception as e:
+            self.get_logger().error(f"Failed to initialize servo queues: {e}")
+            raise SystemExit 
+
+
+        # Subscriber for movement commands
+        self.movement_preset = self.create_subscription(
+            String,
+            '/movement_preset',
+            self.movement_preset_dispatcher,
+            10  # QoS queue depth
+        )
+        self.movement_motor_ctrl = self.create_subscription(
+            String,
+            '/movement_motor_ctrl',
+            self.movement_motor_ctrl_dispatcher,
+            10  # QoS queue depth
+        )
+
+        self.get_logger().info("Subscribed to /movement_preset and /movement_motor_ctrl topics.")
+
+
+        # Testing ============
+        # self.t = 0.0
         # self.timer = self.create_timer(0.05, self.test_servo)
         # In your ServoNode.__init__, after the servos are initialized:
         #rest_angle = find_resting_position(self.rFoot, step=2.0)
         # self.get_logger().info(f"lKnee resting angle set to {rest_angle:.1f}°")
-        self.return_to_rest()
+        # self.return_to_rest()
         # self.test_legs()
         # self.rFoot.move(120)
+        self.initialize_servos()
+
+    def move_servo(
+        self,
+        servo: LX16A,
+        target_angle: float,
+        steps: int = 20,
+        step_delay: float = 0.01,
+        curve: str = 'cubic'
+        ):
+        """
+        Enqueue a movement for a servo. Returns immediately.
+        The servo's worker thread will execute it after any pending moves.
+        """
+        name = next(k for k, v in self._servo_map.items() if v is servo)
+        self._servo_queues[name].put((target_angle, steps, step_delay, curve))
+
+    def movement_motor_ctrl_dispatcher(self, msg: String):
+        """
+        Route incoming /movement_motor_ctrl commands to move a specific servo.
+
+        Expected format:
+            "{servo_id} {angle}"
+            e.g. "2 115.0"  →  move servo #2 (lKnee) to 115°
+
+        Servo ID map:
+            1 = torso | 2 = lKnee | 3 = rKnee
+            4 = lCalf | 5 = rCalf | 6 = lFoot | 7 = rFoot
+        """
+        SERVO_MAP = {
+            1: self.torso,
+            2: self.lKnee,
+            3: self.rKnee,
+            4: self.lCalf,
+            5: self.rCalf,
+            6: self.lFoot,
+            7: self.rFoot,
+        }
+
+        raw = msg.data.strip()
+
+        # --- Validate format ---
+        parts = raw.split()
+        if len(parts) != 2:
+            self.get_logger().warn(
+                f"Invalid motor ctrl format: '{raw}'. Expected '{{servo_id}} {{angle}}'"
+            )
+            return
+
+        try:
+            servo_id = int(parts[0])
+            angle    = float(parts[1])
+        except ValueError:
+            self.get_logger().warn(
+                f"Could not parse motor ctrl message: '{raw}'. "
+                f"servo_id must be an int, angle must be a float."
+            )
+            return
+
+        # --- Validate servo ID ---
+        if servo_id not in SERVO_MAP:
+            self.get_logger().warn(
+                f"Unknown servo ID: {servo_id}. Valid IDs: {list(SERVO_MAP.keys())}"
+            )
+            return
+
+        # --- Validate angle range ---
+        if not (0.0 <= angle <= 240.0):
+            self.get_logger().warn(
+                f"Angle {angle}° out of range for servo {servo_id}. Must be 0–240°."
+            )
+            return
+
+        servo = SERVO_MAP[servo_id]
+        self.get_logger().info(f"Moving servo {servo_id} to {angle:.1f}°")
+        self.move_servo(servo, angle)
+
+
+
+    def movement_preset_dispatcher(self, msg: String):
+        """
+        Route incoming /movement commands to the appropriate method.
+
+        Supported commands:
+            'rest'       — smoothly return all servos to rest positions
+            'test_legs'  — oscillate both legs in opposite phase
+            'test_servo' — run the single-servo sine-wave test
+        """
+        command = msg.data.strip().lower()
+        self.get_logger().info(f"Received movement command: '{command}'")
+
+        if command == 'initialize':
+            self.initialize_servos()
+
+        elif command == 'rest':
+            self.return_to_rest()
+
+        elif command == 'test_legs':
+            self.test_legs()
+
+        elif command == 'test_servo':
+            self.test_servo()
+
+        else:
+            self.get_logger().warn(
+                f"Unknown movement command: '{command}'. "
+                f"Valid commands: 'rest', 'test_legs', 'test_servo'"
+            )
+
+
+    def _servo_worker(self, name: str):
+        servo = self._servo_map[name]
+
+        while True:
+            target_angle, steps, step_delay, curve = self._servo_queues[name].get()
+
+            with self._bus_lock:
+                try:
+                    current = servo.get_physical_angle()
+                except ServoTimeoutError:
+                    self.get_logger().warn(f"{name} timed out reading angle — skipping move.")
+                    self._servo_queues[name].task_done()
+                    continue
+
+            delta      = target_angle - current
+            trajectory = [current + v for v in interpolate_leg(delta, steps=steps, curve=curve)]
+
+            for angle in trajectory:
+                with self._bus_lock:
+                    try:
+                        servo.move(angle)
+                    except ServoTimeoutError:
+                        self.get_logger().error(f"Lost communication with {name} during move.")
+                        break
+                time.sleep(step_delay)  # sleep OUTSIDE the lock so other servos can send
+
+            self._servo_queues[name].task_done()
+
+    def initialize_servos(self):
+        """
+        Run initialization movements to ensure all servos are responsive and in known positions.
+        """
+
+        # Torso shake
+        self.move_servo(self.torso,  HOME.torso, steps=80)
+        self.move_servo(self.torso,  90.0,  steps=80)
+        self.move_servo(self.torso,  130.0, steps=80)
+        self.move_servo(self.torso,  HOME.torso, steps=80)
+
+
+        # # self.move_servo(self.lKnee,  100.0)
+        # # self.move_servo(self.rKnee,  130.0)
+        # # self.move_servo(self.lCalf,  124.0)
+        # # self.move_servo(self.rCalf,  100.0)
+        # # self.move_servo(self.lFoot,  106.0)
+
+        # # Right foot movement
+        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot - 10, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot + 10, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+
+
 
 
     def test_servo(self):
