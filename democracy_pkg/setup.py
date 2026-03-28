@@ -26,7 +26,10 @@ setup(
         'console_scripts': [
             'activate = democracy_pkg.activate:main',
             'voice_service = democracy_pkg.voice_service:main',
-            'voice_recog = democracy_pkg.voice_recog_sys:main'
+            'voice_recog = democracy_pkg.voice_recog_sys:main',
+            'servos = democracy_pkg.servos_sys:main',
+            'imu = democracy_pkg.imu:main',
+            'stepper = democracy_pkg.stepper_sys:main',
         ],
     },
 )

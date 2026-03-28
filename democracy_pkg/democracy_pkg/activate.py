@@ -72,6 +72,11 @@ class ActivateNode(Node):
         except (ServoTimeOutError, ServoChecksumError) as e:
             self.get_logger().error(f"Error testing servo {servo.id}: {e}")
 
+    def initialization_movement(self):
+
+
+        pass
+
 
 def main(args=None):
     # Parse arguments before rclpy init
