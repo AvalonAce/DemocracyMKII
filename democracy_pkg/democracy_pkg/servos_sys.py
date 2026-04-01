@@ -12,6 +12,8 @@ import termios
 import threading
 import queue
 from std_msgs.msg import String
+from stepper_msgs.msg import StepperCommand
+import random
 
 def find_resting_position(servo: LX16A, step: float = 1.0, start_angle: float = 120.0) -> float:
     """
@@ -206,6 +208,9 @@ class ServoNode(Node):
             10  # QoS queue depth
         )
 
+        # For Stepper
+        self._stepper_pub = self.create_publisher(StepperCommand, '/stepper/command', 10)
+
         self.get_logger().info("Subscribed to /movement_preset and /movement_motor_ctrl topics.")
 
 
@@ -213,12 +218,18 @@ class ServoNode(Node):
         # self.t = 0.0
         # self.timer = self.create_timer(0.05, self.test_servo)
         # In your ServoNode.__init__, after the servos are initialized:
-        #rest_angle = find_resting_position(self.rFoot, step=2.0)
-        # self.get_logger().info(f"lKnee resting angle set to {rest_angle:.1f}°")
+        # self.return_to_rest(steps=80)
+        # time.sleep(2)
+        # rest_angle = find_resting_position(self.rFoot, step=2.0)
+        #self.get_logger().info(f"lKnee resting angle set to {rest_angle:.1f}°")
         # self.return_to_rest()
         # self.test_legs()
-        # self.rFoot.move(120)
-        self.initialize_servos()
+        #self.lFoot.move(HOME.lFoot)
+        # self.initialize_servos()
+        # self.get_logger().info("walk test")
+        # self.walk_cycle()
+        # self.salute()
+        # self.answer_manuver()
 
     def move_servo(
         self,
@@ -312,14 +323,29 @@ class ServoNode(Node):
         if command == 'initialize':
             self.initialize_servos()
 
-        elif command == 'rest':
+        elif command == 'home':
             self.return_to_rest()
+
+        elif command == 'walk':
+            self.walk_cycle()
+
+        elif command == 'salute':
+            self.salute()
+
+        elif command == 'answer':
+            self.answer_manuver()
+        
+        elif command == 'ddmf':
+            self.ddmf_manuver()
 
         elif command == 'test_legs':
             self.test_legs()
 
         elif command == 'test_servo':
             self.test_servo()
+
+        elif command == 'shutdown':
+            self.shutdown_sequence()
 
         else:
             self.get_logger().warn(
@@ -367,21 +393,212 @@ class ServoNode(Node):
         self.move_servo(self.torso,  130.0, steps=80)
         self.move_servo(self.torso,  HOME.torso, steps=80)
 
-
-        # # self.move_servo(self.lKnee,  100.0)
-        # # self.move_servo(self.rKnee,  130.0)
-        # # self.move_servo(self.lCalf,  124.0)
-        # # self.move_servo(self.rCalf,  100.0)
-        # # self.move_servo(self.lFoot,  106.0)
-
         # # Right foot movement
         self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
         self.move_servo(self.rFoot,  HOME.rFoot - 10, steps=80)
         self.move_servo(self.rFoot,  HOME.rFoot + 10, steps=80)
         self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
 
+        self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
+        self.move_servo(self.lFoot,  HOME.lFoot + 10, steps=80)
+        self.move_servo(self.lFoot,  HOME.lFoot - 10, steps=80)
+        self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
+
+        # Sleep
+        time.sleep(4)
+
+        self.move_servo(self.lKnee,  HOME.lKnee + 30, steps=80)
+        self.move_servo(self.lCalf,  HOME.lCalf + 30, steps=80)
+        time.sleep(1)
+        self.move_servo(self.lKnee,  HOME.lKnee, steps=80)
+        self.move_servo(self.lCalf,  HOME.lCalf, steps=80)
+        time.sleep(1)
+       
+        self.move_servo(self.rKnee,  HOME.rKnee - 30, steps=80)
+        self.move_servo(self.rCalf,  HOME.rCalf - 30, steps=80)
+        time.sleep(1)
+        
+
+        # Return to home
+        self.move_servo(self.torso,  HOME.torso, steps=80)
+        self.move_servo(self.lKnee,  HOME.lKnee, steps=80)
+        self.move_servo(self.rKnee,  HOME.rKnee, steps=80)
+        self.move_servo(self.rCalf,  HOME.rCalf, steps=80)
+        self.move_servo(self.lCalf,  HOME.lCalf, steps=80)
+        self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+        time.sleep(1)
+
+        self.move_stepper(0, 180.0, StepperCommand.FAST)
+        time.sleep(2)
+    
+    def walk_cycle(self):
+        # Notes
+        # torso - Left (+), Right (-)
+        # RKnee - Forward (-), Backward (+)
+        # rCalf - Forward (+), Backward (-)
+        # rFoot - Right (+), Left (-)
+        # lKnee - Forward (+), Backward (-)
+        # lCalf - Forward (-), Backward (+)
+        # lFoot - Right (-), Left (+)
+
+        
+        # Begin walk cycle
+        # ========== Lean Right Leg ==========
+        self.return_to_rest(steps=80)
+        time.sleep(2)
+        
+        self.move_servo(self.torso,  HOME.torso - 20, steps=80)
+        self.move_servo(self.lFoot,  HOME.lFoot + 40, steps=80)
+        time.sleep(0.3)
+        self.move_servo(self.rFoot,  HOME.rFoot + 22, steps=80)
+        time.sleep(0.2)
+
+        
+        self.move_servo(self.rKnee,  HOME.rKnee + 10, steps=80)
+        self.move_servo(self.rCalf,  HOME.rCalf + 5, steps=80)
+
+        time.sleep(1.5)
 
 
+        for i in range(0,5):
+            # ========== Move Left Foward ==========
+            self.move_servo(self.lKnee,  HOME.lKnee + 30, steps=60)
+            self.move_servo(self.lFoot,  HOME.lFoot - 5, steps=80)
+            self.move_servo(self.lCalf,  HOME.lCalf + 25, steps=80)
+
+            time.sleep(0.5)
+
+            # ========== Lean Over Left Impact =========
+            self.move_servo(self.torso,  HOME.torso + 20, steps=60)
+            self.move_servo(self.lFoot,  HOME.lFoot - 28, steps=95)
+            self.move_servo(self.rCalf,  HOME.rCalf - 5, steps=80)
+            
+            time.sleep(0.25)
+            self.move_servo(self.rKnee,  HOME.rKnee - 10, steps=80)
+            time.sleep(0.15)
+            self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+            
+            time.sleep(0.15)
+            self.move_servo(self.lCalf,  HOME.lCalf + 3, steps=80)
+            time.sleep(0.15)
+            
+
+            # ========== Interim Adjustment onto Left ==========
+            self.move_servo(self.lKnee,  HOME.lKnee + 20, steps=80)
+
+            time.sleep(1.5)
+
+            self.move_servo(self.lKnee,  HOME.lKnee + 10, steps=60)
+            time.sleep(0.5)
+
+            self.move_servo(self.rKnee,  HOME.rKnee - 30, steps=80)
+            self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=80)
+            self.move_servo(self.lCalf,  HOME.lCalf, steps=80)
+            
+            time.sleep(0.4)
+            self.move_servo(self.rCalf,  HOME.rCalf - 15, steps=80)
+            time.sleep(0.2)
+            
+            # ========== Move Right Foward ==========
+            self.move_servo(self.rKnee,  HOME.rKnee - 25, steps=80)
+            self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+            self.move_servo(self.rCalf,  HOME.rCalf - 15, steps=80)
+
+
+            time.sleep(0.5)
+
+            # ========== Lean Over Right Impact =========
+            self.move_servo(self.torso,  HOME.torso - 20, steps=60)
+            self.move_servo(self.rFoot,  HOME.rFoot + 25, steps=80)
+            self.move_servo(self.lCalf,  HOME.lCalf + 5, steps=80)
+            
+            time.sleep(0.25)
+            self.move_servo(self.lKnee,  HOME.lKnee + 5, steps=80)
+            time.sleep(0.15)
+            self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
+            
+            time.sleep(0.15)
+            self.move_servo(self.rCalf,  HOME.rCalf - 5, steps=80)
+            time.sleep(0.15)
+
+            # ========== Interim Adjustment onto Right ==========
+            self.move_servo(self.rKnee,  HOME.rKnee - 17, steps=80)
+
+            time.sleep(1.5)
+
+            self.move_servo(self.rKnee,  HOME.rKnee + 10, steps=60)
+            self.move_servo(self.rCalf,  HOME.rCalf + 5, steps=80)
+            time.sleep(0.5)
+
+
+        time.sleep(2)
+
+        self.return_to_rest(steps=80)
+
+    def salute(self):
+        
+
+        time.sleep(1)
+        self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=80)
+        self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=80)
+        
+        self.move_stepper(1, 90.0, StepperCommand.FAST)
+        self.move_stepper(2, 90.0, StepperCommand.FAST)
+
+        time.sleep(0.7)
+
+        self.move_servo(self.lFoot,  HOME.lFoot - 20, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot + 20, steps=80)
+        time.sleep(0.5)
+        self.move_servo(self.lFoot,  HOME.lFoot + 10, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot - 10, steps=80)
+        time.sleep(0.5)
+        self.move_servo(self.lFoot,  HOME.lFoot - 20, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+
+        time.sleep(2.5)
+        self.return_to_rest()
+        time.sleep(5)        
+
+    def answer_manuver(self):
+
+        # random look left or right
+        dir = random.randint(1,2)
+
+        #time.sleep(2)
+        self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=60)
+        self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=60)
+        time.sleep(0.7)
+
+        #left
+        
+        if dir == 1:
+            self.move_servo(self.torso,  HOME.torso + 20, steps=80)
+            self.move_servo(self.rFoot,  HOME.rFoot + 20, steps=80)
+        else:
+            self.move_servo(self.torso,  HOME.torso - 20, steps=80)
+            self.move_servo(self.lFoot,  HOME.lFoot - 20, steps=80)
+
+        
+        time.sleep(3)
+        self.return_to_rest()
+
+    def ddmf_manuver(self):
+
+        # time.sleep(1)
+
+        self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=80)
+        self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=80)
+        time.sleep(0.7)
+
+
+        self.move_servo(self.torso,  HOME.torso - 20, steps=60)
+        time.sleep(0.5)
+        self.move_servo(self.torso,  HOME.torso + 20, steps=60)
+
+        time.sleep(2)
+        self.return_to_rest()
 
     def test_servo(self):
         try:
@@ -390,7 +607,7 @@ class ServoNode(Node):
             # Example: move lKnee through a cubic ease curve to the target angle
             curve_steps = interpolate_leg(angle, steps=10, curve='cubic')
             for step_angle in curve_steps:
-                self.lKnee.move(step_angle)
+                self.rFoot.move(step_angle)
 
             self.get_logger().info(f"Servo angle: {angle:.2f}")
             self.t += 0.1
@@ -505,6 +722,57 @@ class ServoNode(Node):
             self.get_logger().info("Leg test stopped. Returning to rest.")
             self.return_to_rest()
 
+    def move_stepper(self, motor_id: int, angle_deg: float, speed: int):
+        """
+        Publish a move command to the stepper motor node.
+
+        Args:
+            motor_id  : 1, 2, or 0 (both motors simultaneously)
+            angle_deg : degrees to rotate (positive=CW, negative=CCW)
+            speed     : StepperCommand.SLOW, MEDIUM, or FAST (0, 1, 2)
+        """
+        if motor_id not in (0, 1, 2):
+            self.get_logger().warn(f'move_stepper: invalid motor_id {motor_id}, must be 0, 1, or 2')
+            return
+
+        if speed not in (StepperCommand.SLOW, StepperCommand.MEDIUM, StepperCommand.FAST):
+            self.get_logger().warn(f'move_stepper: invalid speed {speed}, must be 0, 1, or 2')
+            return
+
+        msg           = StepperCommand()
+        msg.motor_id  = motor_id
+        msg.angle_deg = angle_deg
+        msg.speed     = speed
+        self._stepper_pub.publish(msg)
+
+        speed_name = {0: 'SLOW', 1: 'MEDIUM', 2: 'FAST'}.get(speed)
+        self.get_logger().info(
+            f'Stepper command — motor={motor_id}, angle={angle_deg:+.1f}°, speed={speed_name}'
+        )
+
+
+    def shutdown_sequence(self):
+        """
+        Flush all servo queues and return to rest before shutdown.
+        """
+        self.get_logger().info("Shutdown sequence initiated — clearing all servo queues.")
+
+        # Drain every queue so no pending moves execute after this point
+        for name, q in self._servo_queues.items():
+            cleared = 0
+            while not q.empty():
+                try:
+                    q.get_nowait()
+                    q.task_done()
+                    cleared += 1
+                except queue.Empty:
+                    break
+            if cleared:
+                self.get_logger().info(f"  Cleared {cleared} pending move(s) from {name}.")
+
+        self.get_logger().info("All queues empty — returning to rest.")
+        self.return_to_rest()
+        self.get_logger().info("Shutdown sequence complete.")
 
 def main(args=None):
     rclpy.init(args=args)

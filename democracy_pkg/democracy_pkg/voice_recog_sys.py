@@ -21,6 +21,7 @@ class MicNode(Node):
 
         self.speech_pub = self.create_publisher(String, 'speech_input', 10)
         self.voice_request = self.create_publisher(String, 'voice_request', 10)
+        self.movement_preset = self.create_publisher(String, 'movement_preset', 10)
 
         # Load Vosk model
         model_path = '/home/byte_knight/ros2_ws/src/democracy_pkg/models/vosk-model-en'
@@ -119,10 +120,12 @@ class MicNode(Node):
         # Format: 'keyword(s)': ('audio_prefix', min_variation, max_variation)
         keyword_map = {
             'dance':            ('bust',       1, 4),
-            'who are you':      ('reporting',    1, 3),
-            'regard':     ('sergeant',      1, 2),
+            'are you':      ('reporting',    1, 2),
+            'regard':           ('sergeant',      1, 2),
             'line':             ('ddmf',        1, 3),
-            'one thing':('demo',        1, 3),
+            'thing':        ('demo',        1, 3),
+            'nominal':          ('nomi', 1, 2),
+            'shudown':      ('off', 1, 2),
         }
 
         for keyword, (prefix, min_var, max_var) in keyword_map.items():
@@ -131,6 +134,20 @@ class MicNode(Node):
                 filename = f"{prefix}_{variation}_fr.mp3"
 
                 self.get_logger().info(f"Keyword '{keyword}' matched → publishing: {filename}")
+
+                # Keyword Movement Triggers
+                if keyword == 'are you' or keyword == 'regard':
+                    self.get_logger().info("Triggering 'reporting' maneuver")
+                    self.movement_preset.publish(String(data="salute"))
+                elif keyword == 'line':
+                    self.get_logger().info("Triggering 'ddmf' maneuver")
+                    self.movement_preset.publish(String(data="ddmf"))
+                elif keyword == 'thing':
+                    self.get_logger().info("Triggering 'answer' maneuver")
+                    self.movement_preset.publish(String(data="answer"))
+                elif keyword == 'shutdown'
+                    self.get_logger().info("Shutdown Sequence Initiated")
+                    self.movement_preset.publish(String(data="shutdown"))
 
                 msg = String()
                 msg.data = filename
