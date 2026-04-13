@@ -326,8 +326,16 @@ class ServoNode(Node):
         elif command == 'home':
             self.return_to_rest()
 
-        elif command == 'walk':
-            self.walk_cycle()
+        elif command == 'stop':
+            self.shutdown_sequence()
+
+        elif command.startswith('walk'):
+            parts = command.split()
+            cycles = int(parts[1]) if len(parts) > 1 else 2
+            self.walk_cycle(cycles)
+
+        elif command == 'dance':
+            self.dance_one()
 
         elif command == 'salute':
             self.salute()
@@ -407,6 +415,7 @@ class ServoNode(Node):
         # Sleep
         time.sleep(4)
 
+        # Leg Movement
         self.move_servo(self.lKnee,  HOME.lKnee + 30, steps=80)
         self.move_servo(self.lCalf,  HOME.lCalf + 30, steps=80)
         time.sleep(1)
@@ -420,19 +429,28 @@ class ServoNode(Node):
         
 
         # Return to home
-        self.move_servo(self.torso,  HOME.torso, steps=80)
-        self.move_servo(self.lKnee,  HOME.lKnee, steps=80)
-        self.move_servo(self.rKnee,  HOME.rKnee, steps=80)
-        self.move_servo(self.rCalf,  HOME.rCalf, steps=80)
-        self.move_servo(self.lCalf,  HOME.lCalf, steps=80)
-        self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
-        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+        self.return_to_rest(steps=70)
         time.sleep(1)
 
         self.move_stepper(0, 180.0, StepperCommand.FAST)
-        time.sleep(2)
+        time.sleep(3.3)
+
+
+        # Torso shake agreement
+        self.move_servo(self.rKnee,  HOME.rKnee + 20,  steps=70)
+        self.move_servo(self.lKnee,  HOME.lKnee - 20, steps=70)
+        time.sleep(0.5)
+        self.move_servo(self.torso,  HOME.torso - 20, steps=60)
+        time.sleep(0.25)
+        self.move_servo(self.torso,  HOME.torso + 20, steps=60)
+        self.move_servo(self.rKnee,  HOME.rKnee,  steps=60)
+        self.move_servo(self.lKnee,  HOME.lKnee, steps=60)
+        time.sleep(1)
+
+        self.return_to_rest(steps=60)
+        time.sleep(1)
     
-    def walk_cycle(self):
+    def walk_cycle(self, cycles: int = 5):
         # Notes
         # torso - Left (+), Right (-)
         # RKnee - Forward (-), Backward (+)
@@ -446,7 +464,7 @@ class ServoNode(Node):
         # Begin walk cycle
         # ========== Lean Right Leg ==========
         self.return_to_rest(steps=80)
-        time.sleep(2)
+        time.sleep(0.25)
         
         self.move_servo(self.torso,  HOME.torso - 20, steps=80)
         self.move_servo(self.lFoot,  HOME.lFoot + 40, steps=80)
@@ -458,12 +476,12 @@ class ServoNode(Node):
         self.move_servo(self.rKnee,  HOME.rKnee + 10, steps=80)
         self.move_servo(self.rCalf,  HOME.rCalf + 5, steps=80)
 
-        time.sleep(1.5)
+        time.sleep(1)
 
 
-        for i in range(0,5):
+        for i in range(0, cycles):
             # ========== Move Left Foward ==========
-            self.move_servo(self.lKnee,  HOME.lKnee + 30, steps=60)
+            self.move_servo(self.lKnee,  HOME.lKnee + 35, steps=60)
             self.move_servo(self.lFoot,  HOME.lFoot - 5, steps=80)
             self.move_servo(self.lCalf,  HOME.lCalf + 25, steps=80)
 
@@ -487,7 +505,7 @@ class ServoNode(Node):
             # ========== Interim Adjustment onto Left ==========
             self.move_servo(self.lKnee,  HOME.lKnee + 20, steps=80)
 
-            time.sleep(1.5)
+            time.sleep(1)
 
             self.move_servo(self.lKnee,  HOME.lKnee + 10, steps=60)
             time.sleep(0.5)
@@ -501,7 +519,7 @@ class ServoNode(Node):
             time.sleep(0.2)
             
             # ========== Move Right Foward ==========
-            self.move_servo(self.rKnee,  HOME.rKnee - 25, steps=80)
+            self.move_servo(self.rKnee,  HOME.rKnee - 30, steps=80)
             self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
             self.move_servo(self.rCalf,  HOME.rCalf - 15, steps=80)
 
@@ -525,7 +543,7 @@ class ServoNode(Node):
             # ========== Interim Adjustment onto Right ==========
             self.move_servo(self.rKnee,  HOME.rKnee - 17, steps=80)
 
-            time.sleep(1.5)
+            time.sleep(1)
 
             self.move_servo(self.rKnee,  HOME.rKnee + 10, steps=60)
             self.move_servo(self.rCalf,  HOME.rCalf + 5, steps=80)
@@ -599,6 +617,174 @@ class ServoNode(Node):
 
         time.sleep(2)
         self.return_to_rest()
+
+    def dance_one(self):
+        # Notes
+        # torso - Left (+), Right (-)
+        # RKnee - Forward (-), Backward (+)
+        # rCalf - Forward (+), Backward (-)
+        # rFoot - Right (+), Left (-)
+        # lKnee - Forward (+), Backward (-)
+        # lCalf - Forward (-), Backward (+)
+        # lFoot - Right (-), Left (+)
+
+        self.return_to_rest(steps=80)
+        time.sleep(1)
+
+        norm_step_spd = 70
+        fast_step_spd = 60
+        slow_step_spd = 90
+
+        # First Intro - Rock back and forth
+        rck_ang = 15
+        for _ in range(4):
+            self.move_servo(self.rFoot,  HOME.rFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot + rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+            self.move_servo(self.rFoot,  HOME.rFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot - rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+        
+        self.move_servo(self.rFoot,  HOME.rFoot , steps=norm_step_spd)
+        self.move_servo(self.lFoot,  HOME.lFoot , steps=norm_step_spd)
+
+
+        # First Line - Addition
+        self.move_stepper(1, 360.0, StepperCommand.FAST)
+        self.move_stepper(2, 360.0, StepperCommand.FAST)
+
+        rck_ang = 10
+        for _ in range(3):
+            self.move_servo(self.rFoot,  HOME.rFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.torso,  HOME.torso - 20, steps=norm_step_spd)
+            time.sleep(1)
+            self.move_servo(self.rFoot,  HOME.rFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.torso,  HOME.torso + 20, steps=norm_step_spd)
+            time.sleep(1)
+
+        for _ in range(3):
+            self.move_servo(self.torso,  HOME.torso, steps=norm_step_spd)
+            self.move_servo(self.rFoot,  HOME.rFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot + rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+            self.move_servo(self.rFoot,  HOME.rFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot - rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+
+        for _ in range(2):
+            self.move_servo(self.rFoot,  HOME.rFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot + rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+            self.move_servo(self.rFoot,  HOME.rFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot - rck_ang, steps=norm_step_spd)
+            time.sleep(1)
+
+        self.return_to_rest(steps=slow_step_spd)
+        time.sleep(1.1)
+
+
+        # Second Line - Double Tap waist
+        self.move_stepper(1, 360.0, StepperCommand.FAST)
+        self.move_stepper(2, 360.0, StepperCommand.FAST)
+
+        rck_ang = 18
+        for _ in range(4):
+            self.move_servo(self.rFoot,  HOME.rFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot + rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee, steps=norm_step_spd)
+            time.sleep(0.25)
+
+            self.move_servo(self.torso,  HOME.torso - 30, steps=fast_step_spd)
+            self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=fast_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee - 15, steps=fast_step_spd)
+            time.sleep(0.4)
+            
+            self.move_servo(self.torso,  HOME.torso - 5, steps=norm_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee, steps=norm_step_spd)
+            time.sleep(0.4)
+            self.move_servo(self.torso,  HOME.torso - 30, steps=fast_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee -15, steps=fast_step_spd)
+            time.sleep(0.4)
+            self.move_servo(self.torso,  HOME.torso - 5, steps=norm_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee, steps=fast_step_spd)
+            time.sleep(1)
+
+            self.move_servo(self.rFoot,  HOME.rFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.lFoot,  HOME.lFoot - rck_ang, steps=norm_step_spd)
+            self.move_servo(self.rKnee,  HOME.rKnee, steps=norm_step_spd)
+            time.sleep(0.25)
+
+            self.move_servo(self.torso,  HOME.torso + 20, steps=norm_step_spd)
+            self.move_servo(self.rKnee, HOME.rKnee + 15, steps=fast_step_spd)
+            self.move_servo(self.lKnee, HOME.lKnee - 15, steps=fast_step_spd)
+            time.sleep(0.4)
+
+            self.move_servo(self.torso,  HOME.torso + 5, steps=norm_step_spd)
+            self.move_servo(self.rKnee, HOME.rKnee, steps=norm_step_spd)
+            time.sleep(0.4)
+            self.move_servo(self.torso,  HOME.torso + 20, steps=norm_step_spd)
+            self.move_servo(self.rKnee, HOME.rKnee + 15, steps=fast_step_spd)
+            time.sleep(0.4)
+            self.move_servo(self.torso,  HOME.torso + 5, steps=norm_step_spd)
+            self.move_servo(self.rKnee, HOME.rKnee, steps=norm_step_spd)
+
+            time.sleep(1.5)
+
+        time.sleep(1.5)
+        self.return_to_rest(steps=slow_step_spd)
+        time.sleep(1.5)
+
+        # Last action Switch Feet
+        self.move_stepper(1, 360.0, StepperCommand.FAST)
+        self.move_stepper(2, 360.0, StepperCommand.FAST)
+
+        rck_ang = 35
+        for i in range(5):
+            self.move_servo(self.rKnee,  HOME.rKnee + rck_ang, steps=slow_step_spd)
+            self.move_servo(self.rCalf,  HOME.rCalf + rck_ang, steps=slow_step_spd)
+            self.move_servo(self.lKnee,  HOME.lKnee + rck_ang, steps=slow_step_spd)
+            self.move_servo(self.lCalf,  HOME.lCalf + rck_ang, steps=slow_step_spd)
+
+            if i > 2:
+                self.move_servo(self.torso,  HOME.torso + 20, steps=slow_step_spd)
+            else:
+                self.move_servo(self.torso,  HOME.torso - 20, steps=slow_step_spd)
+
+            time.sleep(0.85)
+
+            self.move_servo(self.rKnee,  HOME.rKnee - rck_ang, steps=slow_step_spd)
+            self.move_servo(self.rCalf,  HOME.rCalf - rck_ang, steps=slow_step_spd)
+            self.move_servo(self.lKnee,  HOME.lKnee - rck_ang, steps=slow_step_spd)
+            self.move_servo(self.lCalf,  HOME.lCalf - rck_ang, steps=slow_step_spd)
+
+            if i > 2:
+                self.move_servo(self.torso,  HOME.torso - 20, steps=slow_step_spd)
+            else:
+                self.move_servo(self.torso,  HOME.torso + 20, steps=slow_step_spd)
+
+            time.sleep(0.85)
+
+        time.sleep(1.5)
+        self.return_to_rest(steps=slow_step_spd)
+        time.sleep(1)
+
+        # Torso shake agreement
+        self.move_servo(self.rKnee,  HOME.rKnee + 20,  steps=70)
+        self.move_servo(self.lKnee,  HOME.lKnee - 20, steps=70)
+        time.sleep(0.5)
+        self.move_servo(self.torso,  HOME.torso - 20, steps=60)
+        time.sleep(0.25)
+        self.move_servo(self.torso,  HOME.torso + 20, steps=60)
+        self.move_servo(self.rKnee,  HOME.rKnee,  steps=60)
+        self.move_servo(self.lKnee,  HOME.lKnee, steps=60)
+        time.sleep(1)
+
+        self.return_to_rest(steps=80)
+
+
+
 
     def test_servo(self):
         try:

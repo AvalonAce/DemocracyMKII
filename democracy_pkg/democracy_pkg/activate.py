@@ -34,9 +34,17 @@ class ActivateNode(Node):
         self.voice_request = self.create_publisher(String, 'voice_request', 10)
         self.servo_preset_command = self.create_publisher(String, 'movement_preset', 10)
 
-        # Replace the direct publish with a one-shot timer
-        self.create_timer(1.0, self._run_activation_sequence)  # fires once after 2s
-        self._activation_done = False
+        # Activation Sequence
+        self.bypass_activation = True
+        if not self.bypass_activation:
+            self.create_timer(3.0, self._run_activation_sequence)  # fires once after 2s
+            self._activation_done = False
+        else: 
+            self.get_logger().warn("Bypassing activation sequence.")
+            time.sleep(1)
+            self.voice_request.publish(quickLine("copy", 1, 2))
+            self.voice_enabled = False
+
 
         self._cmd_thread = threading.Thread(target=self.command, daemon=True)
         self._cmd_thread.start()
@@ -70,8 +78,9 @@ class ActivateNode(Node):
             "help"    : self.cmd_help,
             "status"  : self.cmd_status,
             "stop"    : self.cmd_stop,
-            "move"    : self.cmd_move,
+            "walk"    : self.cmd_walk,
             "home"    : self.cmd_home,
+            "dance"   : self.cmd_dance,
         }
 
         self.get_logger().info("Command interface ready. Type 'help' for available commands.")
@@ -106,27 +115,34 @@ class ActivateNode(Node):
         print("  [status] Robot is nominal (placeholder)")
 
     def cmd_stop(self):
-        # TODO: publish a zero-velocity Twist or equivalent stop message
         self.get_logger().info("Stop command issued.")
+        self.voice_request.publish(quickLine("capitain", 1, 3))
+        self.servo_preset_command.publish(String(data="stop"))
         print("  [stop] Halting all motion.")
 
-    def cmd_move(self, *args):
-        # if len(args) < 2:
-        #     print("  Usage: move <x> <y>")
-        #     return
-        # try:
-        #     x, y = float(args[0]), float(args[1])
-        # except ValueError:
-        #     print("  Error: x and y must be numbers.")
-        #     return
+    def cmd_walk(self, *args):
+        if len(args) < 1:
+            print("  Usage: walk <cycles>")
+            return
+        try:
+            cycles = int(args[0])
+        except ValueError:
+            print("  Error: cycles must be a number.")
+            return
 
-        self.get_logger().info(f"Moving in a straight line to target (placeholder).")
-        self.servo_preset_command.publish(String(data="walk"))
-
+        self.get_logger().info(f"Moving in a straight line to target.")
+        self.voice_request.publish(quickLine("capitain", 1, 3))
+        self.servo_preset_command.publish(String(data=f"walk {cycles}"))
 
     def cmd_home(self):
         self.get_logger().info("Home command issued. Returning to home position.")
         self.servo_preset_command.publish(String(data="home"))
+
+    def cmd_dance(self):
+        self.get_logger().info("Dance command issued. Initiating dance sequence.")
+        self.voice_request.publish(quickLine("bust", 1, 4))
+        self.servo_preset_command.publish(String(data="dance"))
+
 
     def toggle_voice_callback(self, request, response):
         self.voice_enabled = request.data

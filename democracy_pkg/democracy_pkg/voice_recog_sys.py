@@ -65,7 +65,8 @@ class MicNode(Node):
             keyword_index = self.porcupine.process(pcm)
 
             if keyword_index >= 0:
-                self.get_logger().info("Wake word detected!")
+                self.get_logger().info("Command detected!")
+                self.categorize_and_ship("uhh") 
                 self.capture_speech()
 
         except Exception as e:
@@ -125,7 +126,11 @@ class MicNode(Node):
             'line':             ('ddmf',        1, 3),
             'thing':        ('demo',        1, 3),
             'nominal':          ('nomi', 1, 2),
-            'shudown':      ('off', 1, 2),
+            'shutdown':      ('off', 1, 2),
+            'stop':             ('capitain', 1, 4),
+            'robot':            ('cava', 1, 3),
+            'uhh':              ('uhh', 1, 4),
+            'error':          ('error', 1, 2),
         }
 
         for keyword, (prefix, min_var, max_var) in keyword_map.items():
@@ -145,9 +150,12 @@ class MicNode(Node):
                 elif keyword == 'thing':
                     self.get_logger().info("Triggering 'answer' maneuver")
                     self.movement_preset.publish(String(data="answer"))
-                elif keyword == 'shutdown'
+                elif keyword == 'shutdown':
                     self.get_logger().info("Shutdown Sequence Initiated")
                     self.movement_preset.publish(String(data="shutdown"))
+                elif keyword == 'stop':
+                    self.get_logger().info("Stop Command Detected")
+                    self.movement_preset.publish(String(data="stop"))
 
                 msg = String()
                 msg.data = filename
