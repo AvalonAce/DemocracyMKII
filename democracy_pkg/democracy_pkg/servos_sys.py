@@ -346,6 +346,12 @@ class ServoNode(Node):
         elif command == 'ddmf':
             self.ddmf_manuver()
 
+        elif command == 'fawn':
+            self.fawn_manuver()
+
+        elif command == 'guard':
+            self.guard_manuver()
+
         elif command == 'test_legs':
             self.test_legs()
 
@@ -782,6 +788,36 @@ class ServoNode(Node):
         time.sleep(1)
 
         self.return_to_rest(steps=80)
+
+    def fawn_manuver(self):
+        self.move_servo(self.lFoot,  HOME.lFoot - 20, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot + 20, steps=80)
+        time.sleep(0.25)
+        self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=80)
+        self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=80)
+        time.sleep(0.7)
+
+
+        self.move_servo(self.torso,  HOME.torso + 20, steps=60)
+        self.move_servo(self.lFoot,  HOME.lFoot, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot, steps=80)
+        time.sleep(0.5)
+        self.move_servo(self.torso,  HOME.torso - 20, steps=60)
+
+        time.sleep(2)
+        self.return_to_rest()
+
+    def guard_manuver(self):
+
+        self.move_servo(self.lFoot,  HOME.lFoot - 20, steps=80)
+        self.move_servo(self.rFoot,  HOME.rFoot + 20, steps=80)
+        time.sleep(0.25)
+        self.move_servo(self.lKnee,  HOME.lKnee - 15, steps=80)
+        self.move_servo(self.rKnee,  HOME.rKnee + 15, steps=80)
+        time.sleep(0.7)
+
+        time.sleep(2)
+        self.return_to_rest()
 
 
 
